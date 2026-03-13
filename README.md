@@ -1,4 +1,4 @@
-# DAS Group ## – Household Size Analysis
+# DAS Group 1 – Household Size Analysis
 
 ## Project Overview
 
