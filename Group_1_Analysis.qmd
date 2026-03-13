@@ -10,11 +10,13 @@ editor: visual
 
 \# 3 Exploratory Data Analysis
 
-\# 4 Classification Models
+\# 4 GLM modelling
 
-\# 5 Model Comparison
+\# 5 Model diagnostics
 
-\# 6 Conclusion
+# 6 Interpretation of results
+
+\# 7 Conclusion
 
 Running Code
 
