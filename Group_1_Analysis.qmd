@@ -1,0 +1,34 @@
+---
+title: "Group_1_Analysis.qmd"
+format: html
+editor: visual
+---
+
+\# 1 Introduction
+
+\# 2 Data
+
+\# 3 Exploratory Data Analysis
+
+\# 4 Classification Models
+
+\# 5 Model Comparison
+
+\# 6 Conclusion
+
+Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
