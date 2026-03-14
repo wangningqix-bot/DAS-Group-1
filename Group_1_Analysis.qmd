@@ -2,17 +2,463 @@
 title: "Group_1_Analysis.qmd"
 format: html
 editor: visual
+editor_options: 
+  chunk_output_type: inline
+  output-file: "C:/Users/zlt/Desktop/Group_1_Analysis.html"
 ---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE) 
+library(tidyverse) 
+library(ggplot2) 
+library(dplyr) 
+library(corrplot) 
+library(gridExtra) 
+library(knitr) 
+library(broom)
+```
 
 \# 1 Introduction
 
+## 1.1 Background
+
+## 1.2 Research Questions 
+
+What family factors affect the number of family members?
+
+## 1.3 Dataset Overview
+
+The dataset contains 11 original variables:
+
+| Variable | Description |
+|:---|:---|
+| Total.Household.Income | Annual household income (in Philippine Pesos) |
+| Region | All households are from CAR region |
+| Total.Food.Expenditure | Annual food expenditure (in Philippine Pesos) |
+| Household.Head.Sex | Male/Female |
+| Household.Head.Age | Age in years |
+| Type.of.Household | Single Family / Extended Family / Non-related |
+| Total.Number.of.Family.members | Household size |
+| House.Floor.Area | Square meters |
+| House.Age | Age of the house in years |
+| Number.of.bedrooms | Count of bedrooms |
+| Electricity | Whether household has electricity access (1=Yes, 0=No) |
+
 \# 2 Data
+
+## 2.1 Data Loading and Preprocessing
+
+```{r}
+# Read the data 
+data <- read.csv("dataset01.csv")  
+# Rename variables for easier handling 
+df <- data %>%   
+  rename(     
+   income = Total.Household.Income,     
+   region = Region,     
+   food_exp = Total.Food.Expenditure,     
+   head_sex = Household.Head.Sex,    
+   head_age = Household.Head.Age,     
+   hh_type = Type.of.Household,    
+   family_size = Total.Number.of.Family.members,     
+   floor_area = House.Floor.Area,     
+   house_age = House.Age,     
+   bedrooms = Number.of.bedrooms,     
+   electricity = Electricity   
+   ) %>%   
+   mutate(     
+   head_sex = as.factor(head_sex),     
+   hh_type = as.factor(hh_type),     
+   electricity = as.factor(electricity),     
+   income_log = log(income),     
+   food_exp_log = log(food_exp),     
+   floor_area_log = log(floor_area),     
+   food_ratio = food_exp / income * 100,     
+   age_group = cut(head_age,                      
+                   breaks = c(0, 30, 40, 50, 60, 70, 100),                                      labels = c("<30", "30-39", "40-49", "50-59", "60-69", "70+")),     
+    income_group = cut(income,                         
+                       breaks = quantile(income, probs = c(0, 0.25, 0.5, 0.75, 1)),                        
+                       labels = c("Low", "Lower-Middle", "Upper-Middle", "High")),     
+                       
+    bedrooms_group = cut(bedrooms,                           
+                         breaks = c(-1, 0, 1, 2, 3, 10),              
+                         labels = c("0", "1", "2", "3", "4+"))   
+)
+```
+
+## 2.2 Data Structure
+
+```{r}
+
+       
+# Dataset dimensions 
+cat("Dataset dimensions:", dim(df)[1], "rows,", dim(df)[2], "columns\n\n")  
+# Variable types 
+cat("Variable types:\n") 
+glimpse(df)  
+# Missing values check 
+cat("\n\nMissing values:\n") 
+colSums(is.na(df))
+```
+
+## 2.3 Summary Statistics
+
+```{r}
+# Summary statistics for numerical variables 
+df %>%   
+     select(income, food_exp, head_age, family_size, floor_area, house_age, bedrooms) %>%   
+    summary() %>%   
+    knitr::kable(caption = "Summary Statistics of Numerical Variables")
+```
 
 \# 3 Exploratory Data Analysis
 
-\# 4 GLM modelling
+# 3 Exploratory Data Analysis
 
-\# 5 Model diagnostics
+## 3.1 Univariate Analysis
+
+### 3.1.1 Household Income Distribution
+
+```{r}
+# Income distribution 
+p1 <- ggplot(df, aes(x = income)) +   
+  geom_histogram(bins = 50, fill = "steelblue", color = "black", alpha = 0.7) +   
+  labs(title = "Household Income Distribution",        
+       x = "Income (₱)",         
+       y = "Frequency") +   
+  theme_minimal() +   
+  scale_x_continuous(labels = scales::comma)  
+p2 <- ggplot(df, aes(x = income_log)) +   
+             geom_histogram(bins = 30, fill = "orange", color = "black", alpha = 0.7) +
+             labs(title = "Income Distribution (Log-transformed)",        
+                  x = "log(Income)",         
+                  y = "Frequency") +   
+            theme_minimal()
+
+grid.arrange(p1, p2, ncol = 2)  
+# Income statistics 
+income_stats <- data.frame(   
+Statistic = c("Minimum", "Q1", "Median", "Mean", "Q3", "Maximum", "SD"),   
+              Value = c(min(df$income),              
+              quantile(df$income, 0.25),             
+              median(df$income),             
+              round(mean(df$income), 0),             
+              quantile(df$income, 0.75),             
+              max(df$income),             
+              round(sd(df$income), 0)) 
+)  
+knitr::kable(income_stats, caption = "Income Statistics", digits = 0)
+```
+
+### 3.1.2 Food Expenditure
+
+```{r}
+# Food expenditure distribution 
+p1 <- ggplot(df, aes(x = food_exp)) +   
+geom_histogram(bins = 40, fill = "coral", color = "black", alpha = 0.7) +   
+labs(title = "Food Expenditure Distribution",        
+x = "Food Expenditure (₱)",         
+y = "Frequency") +   
+theme_minimal() +   
+scale_x_continuous(labels = scales::comma)  
+
+p2 <- ggplot(df, aes(x = food_ratio)) +   
+    geom_histogram(bins = 30, fill = "purple", color = "black", alpha = 0.7) +   
+    labs(title = "Food Expenditure as % of Income",        
+    x = "Percentage (%)",         
+    y = "Frequency") +   theme_minimal()  
+grid.arrange(p1, p2, ncol = 2)  
+# Food expenditure statistics 
+food_stats <- data.frame(   Statistic = c("Minimum", "Q1", "Median", "Mean", "Q3", "Maximum"),   
+                        Food_Exp = c(min(df$food_exp),                 
+                        quantile(df$food_exp, 0.25),                
+                        median(df$food_exp),                
+                        round(mean(df$food_exp), 0),                 
+                        quantile(df$food_exp, 0.75),                
+                        max(df$food_exp)),   
+Percent_of_Income = c(min(df$food_ratio),                          
+                      quantile(df$food_ratio, 0.25),                         
+                      median(df$food_ratio),                         
+                      round(mean(df$food_ratio), 1),                         
+                      quantile(df$food_ratio, 0.75),                         
+                      max(df$food_ratio)) 
+)  
+knitr::kable(food_stats, caption = "Food Expenditure Statistics")
+```
+
+### 3.1.3 Demographic Characteristics
+
+```{r}
+# Household head age 
+p1 <- ggplot(df, aes(x = head_age)) +   
+             geom_histogram(binwidth = 5, fill = "skyblue", color = "black", alpha = 0.7) +   
+             labs(title = "Household Head Age Distribution",        
+             x = "Age",         
+             y = "Frequency") +   
+        theme_minimal() 
+
+# Household head sex 
+p2 <- ggplot(df, aes(x = head_sex, fill = head_sex)) +   
+             geom_bar() +   
+             labs(title = "Household Head Sex",        
+             x = "Sex",         
+             y = "Count") +   
+             theme_minimal() +   
+             scale_fill_manual(values = c("Male" = "lightblue", "Female" = "pink")) 
+
+# Household type 
+p3 <- ggplot(df, aes(x = hh_type, fill = hh_type)) +   
+                              geom_bar() +   
+                              labs(title = "Household Type",        
+                              x = "Type",         
+                              y = "Count") +   
+                              theme_minimal() +   
+                              theme(axis.text.x = element_text(angle = 45, hjust = 1)) +   
+                              scale_fill_brewer(palette = "Set2") 
+
+# Family size 
+p4 <- ggplot(df, aes(x = family_size)) +   
+                           geom_histogram(binwidth = 1, fill = "lightgreen", color = "black", alpha = 0.7) +                             
+                           labs(title = "Family Size Distribution",        
+                           x = "Number of Family Members",         
+                           y = "Frequency") +   theme_minimal()  
+                           
+    grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)  
+    # Summary tables 
+    age_table <- df %>%   group_by(age_group) %>%   
+    summarise(Count = n(), Percentage = round(n()/nrow(df)*100, 1))  
+    gender_table <- df %>%   
+    group_by(head_sex) %>%   
+    summarise(Count = n(), Percentage = round(n()/nrow(df)*100, 1))  
+    hh_type_table <- df %>%   
+    group_by(hh_type) %>%   
+    summarise(Count = n(), Percentage = round(n()/nrow(df)*100, 1))
+    
+    knitr::kable(age_table, caption = "Age Group Distribution") 
+    knitr::kable(gender_table, caption = "Gender Distribution") 
+    knitr::kable(hh_type_table, caption = "Household Type Distribution")
+```
+
+### 3.1.4 Housing Characteristics
+
+```{r}
+# Floor area distribution 
+p1 <- ggplot(df, aes(x = floor_area)) +   
+             geom_histogram(bins = 50, fill = "brown", color = "black", alpha = 0.7) +   
+             labs(title = "House Floor Area Distribution",        
+             x = "Area (sqm)",         
+             y = "Frequency") +   
+             theme_minimal()  
+# Bedrooms distribution 
+p2 <- ggplot(df, aes(x = bedrooms_group, fill = bedrooms_group)) +   
+             geom_bar() +   
+             labs(title = "Number of Bedrooms",        
+             x = "Bedrooms",         
+             y = "Count") +   
+             theme_minimal() +   
+             theme(legend.position = "none") +   
+             scale_fill_brewer(palette = "Greens")  
+# House age distribution 
+p3 <- ggplot(df, aes(x = house_age)) +   
+             geom_histogram(binwidth = 5, fill = "gray", color = "black", alpha = 0.7) +   
+             labs(title = "House Age Distribution",        
+             x = "Age (years)",         
+             y = "Frequency") +   
+             theme_minimal()  
+# Electricity access 
+p4 <- ggplot(df, aes(x = electricity, fill = electricity)) +   
+             geom_bar() +   
+             labs(title = "Electricity Access",        
+             x = "Has Electricity",         
+             y = "Count") +   
+             theme_minimal() +   
+             scale_fill_manual(values = c("0" = "gray", "1" = "gold"),                     
+             labels = c("No", "Yes"))  
+grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)  
+# Summary tables 
+bedroom_table <- df %>%   
+   group_by(bedrooms_group) %>%   
+   summarise(Count = n(), Percentage = round(n()/nrow(df)*100, 1))  
+electricity_table <- df %>%   
+   group_by(electricity) %>%   
+   summarise(Count = n(), Percentage = round(n()/nrow(df)*100, 1))  
+
+knitr::kable(bedroom_table, caption = "Bedroom Distribution") 
+knitr::kable(electricity_table, caption = "Electricity Access")
+
+```
+
+## 3.2 Bivariate Analysis
+
+### 3.2.1 Correlation Matrix
+
+```{r}
+# Select numerical variables for correlation 
+numeric_vars <- df %>%   
+  select(income_log, food_exp_log, head_age, family_size,           
+         floor_area_log, 
+         house_age, bedrooms)
+
+# Calculate correlation matrix 
+cor_matrix <- cor(numeric_vars, use = "complete.obs")  
+# Visualize correlation matrix 
+corrplot(cor_matrix, method = "color", type = "upper",           
+         tl.col = "black", tl.srt = 45,          
+         addCoef.col = "black", number.cex = 0.7,          
+         title = "Correlation Matrix of Numerical Variables",          
+         mar = c(0,0,2,0))
+```
+
+### 3.2.2 Income vs Food Expenditure
+
+```{r}
+# Scatter plot 
+ggplot(df, aes(x = income, y = food_exp)) +   
+  geom_point(alpha = 0.3, color = "steelblue") +   
+  geom_smooth(method = "lm", color = "red", se = TRUE) +   
+  labs(title = "Income vs Food Expenditure",        
+       x = "Income (₱)",         
+       y = "Food Expenditure (₱)") +   
+  theme_minimal() +   
+  scale_x_continuous(labels = scales::comma) +   
+  scale_y_continuous(labels = scales::comma) +   
+  annotate("text", x = 3e6, y = 1e5,             
+           label = paste("r =", round(cor(df$income_log, df$food_exp_log), 2)))  
+# By income group 
+income_food <- df %>%   
+  group_by(income_group) %>%   
+  summarise(     Mean_Income = mean(income),     
+                 Mean_Food = mean(food_exp),     
+                 Food_Ratio = mean(food_ratio),     
+                 N = n()   )  
+
+knitr::kable(income_food, caption = "Food Expenditure by Income Group", digits = 0)
+```
+
+### 3.2.3 Electricity Access Analysis
+
+```{r}
+# Compare households with and without electricity 
+electricity_comparison <- df %>%   
+  group_by(electricity) %>%   
+  summarise(     
+    Mean_Income = mean(income),     
+    Median_Income = median(income),     
+    Mean_Food = mean(food_exp),     
+    Mean_Floor_Area = mean(floor_area),     
+    Mean_Bedrooms = mean(bedrooms),     
+    Mean_Family_Size = mean(family_size),     
+    N = n()   )  
+
+knitr::kable(electricity_comparison, caption = "Comparison by Electricity Access", digits = 0)  
+# Boxplot of income by electricity 
+ggplot(df, aes(x = electricity, y = income, fill = electricity)) +   
+  geom_boxplot() +   
+  labs(title = "Income Distribution by Electricity Access",        
+       x = "Has Electricity",         
+       y = "Income (₱)") +   
+  theme_minimal() +   
+  scale_y_continuous(labels = scales::comma) +   
+  scale_fill_manual(values = c("0" = "gray", "1" = "gold"),                     
+                    labels = c("No", "Yes"))  
+# T-test 
+t_test_elec <- t.test(income ~ electricity, data = df) 
+                      cat("T-test p-value:", t_test_elec$p.value)
+```
+
+### 3.2.4 Gender Analysis
+
+```{r}
+# Income by gender 
+gender_income <- df %>%   
+  group_by(head_sex) %>%   
+  summarise(     
+    Mean_Income = mean(income),     
+    Median_Income = median(income),     
+    Mean_Family_Size = mean(family_size),     
+    Extended_Family_Pct = mean(hh_type == "Extended Family") * 100,     N = n()   
+    )  
+knitr::kable(gender_income, caption = "Characteristics by Household Head Gender", digits = 0)  
+# Boxplot 
+ggplot(df, aes(x = head_sex, y = income, fill = head_sex)) +   
+  geom_boxplot() +   
+  labs(title = "Income Distribution by Gender",        
+       x = "Household Head Gender",        
+       y = "Income (₱)") +   
+  theme_minimal() +   
+  scale_y_continuous(labels = scales::comma) +   
+  scale_fill_manual(values = c("Male" = "lightblue", "Female" = "pink"))
+```
+
+### 3.2.5 Housing Conditions
+
+```{r}
+# Floor area vs family size 
+ggplot(df, aes(x = floor_area, y = family_size)) +   
+  geom_point(alpha = 0.3, color = "brown") +   
+  geom_smooth(method = "lm", color = "red", se = TRUE) +   
+  labs(title = "Floor Area vs Family Size",        
+       x = "Floor Area (sqm)",         
+       y = "Family Size") +   
+  theme_minimal()  
+# Bedrooms vs family size 
+ggplot(df, aes(x = as.factor(bedrooms), y = family_size, fill = as.factor(bedrooms))) +   geom_boxplot() +  
+  labs(title = "Bedrooms vs Family Size",        
+       x = "Number of Bedrooms",         
+       y = "Family Size") +   
+  theme_minimal() +   
+  theme(legend.position = "none") +   
+  scale_fill_brewer(palette = "Greens")  
+# Create crowding index 
+df <- df %>%   
+  mutate(     
+    crowding_index = floor_area / family_size,     
+    crowded = ifelse(crowding_index < 10, "Crowded", "Not Crowded")   
+    )  
+# Crowding analysis 
+crowding_table <- df %>%   
+  group_by(crowded) %>%   
+  summarise(     
+    Count = n(),     
+    Percentage = round(n()/nrow(df)*100, 1),     
+    Mean_Income = mean(income)   
+    )  
+
+knitr::kable(crowding_table, caption = "Crowding Analysis", digits = 0)
+```
+
+## 3.3 Key Findings from EDA
+
+```{r}
+cat("========================================\n") 
+cat("        KEY FINDINGS FROM EDA\n") 
+cat("========================================\n\n")  
+cat("1. Income Distribution:\n") 
+cat("   - Highly skewed: Mean = ₱", round(mean(df$income), 0),      ", Median = ₱", round(median(df$income), 0), "\n") 
+cat("   - Top 10% earn > ₱", round(quantile(df$income, 0.9), 0), "\n") 
+cat("   - Bottom 25% earn < ₱", round(quantile(df$income, 0.25), 0), "\n\n")  
+cat("2. Food Expenditure:\n") 
+cat("   - Average food expenditure: ₱", round(mean(df$food_exp), 0), "\n") 
+cat("   - Food as % of income: ", round(mean(df$food_ratio), 1), "%\n") 
+cat("   - Engel's Law: Poor spend ", round(mean(df$food_ratio[df$income_group == "Low"]), 1),      "% vs Rich spend ", round(mean(df$food_ratio[df$income_group == "High"]), 1), "%\n\n")  
+cat("3. Demographics:\n") 
+cat("   - Average household size: ", round(mean(df$family_size), 1), " persons\n") 
+cat("   - Average head age: ", round(mean(df$head_age), 1), " years\n") 
+cat("   - Male-headed households: ", round(mean(df$head_sex == "Male")*100, 1), "%\n") 
+cat("   - Extended families: ", round(mean(df$hh_type == "Extended Family")*100, 1), "%\n\n")  
+cat("4. Housing:\n") 
+cat("   - Average floor area: ", round(mean(df$floor_area), 1), " sqm\n") 
+cat("   - Average bedrooms: ", round(mean(df$bedrooms), 1), "\n") 
+cat("   - Crowded households (<10 sqm/person): ",      round(mean(df$crowding_index < 10)*100, 1), "%\n\n")  
+cat("5. Infrastructure:\n") 
+cat("   - Electrification rate: ", round(mean(df$electricity == 1)*100, 1), "%\n") 
+cat("   - Income gap: Electrified households earn ",      round(mean(df$income[df$electricity == 1]) / mean(df$income[df$electricity == 0]), 1),     "x more\n\n")  
+cat("6. Strongest Correlations:\n") 
+cat("   - Floor Area vs Bedrooms: r = ", round(cor(df$floor_area_log, df$bedrooms), 2), "\n") 
+cat("   - Income vs Food Expenditure: r = ", round(cor(df$income_log, df$food_exp_log), 2), "\n") 
+cat("   - Income vs Floor Area: r = ", round(cor(df$income_log, df$floor_area_log), 2), "\n") 
+cat("   - Bedrooms vs Family Size: r = ", round(cor(df$bedrooms, df$family_size), 2), "\n")
+```
 
 # 6 Interpretation of results
 
@@ -33,4 +479,4 @@ You can add options to executable code like this
 2 * 2
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+The `echo: false` option disables the printing of code (only output is displayed). bash quarto preview Group_1_Analysis.qmd --to html
