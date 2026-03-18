@@ -1,14 +1,20 @@
 ---
-title: "Group_1_Analysis.qmd"
-format: html
+title: "Determinants of Household Size: A Socioeconomic Analysis Using Poisson Regression"
+format: 
+    html:
+      embed-resources: true
+execute:
+  echo: false
+  warning: false
+  message: false
+  
 editor: visual
+
 editor_options: 
-  chunk_output_type: inline
-  output-file: "C:/Users/zlt/Desktop/Group_1_Analysis.html"
+  chunk_output_type: console
 ---
 
 ```{r}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE) 
 library(tidyverse) 
 library(ggplot2) 
 library(dplyr) 
@@ -24,35 +30,49 @@ library(caret)
 library(gt)
 ```
 
-\# 1 Introduction
+# 1 Introduction
 
 ## 1.1 Background
 
+Household structure is a fundamental indicator of socioeconomic development. Family size is influenced by income, housing conditions, demographic characteristics, and access to infrastructure. Understanding these relationships helps explain inequality patterns and living conditions within the region.
+
+In particular, economic theory such as Engel’s Law suggests that lower-income households spend a larger proportion of income on food, which may also correlate with household size. Additionally, housing space constraints may limit family expansion.
+
 ## 1.2 Research Questions
 
-What family factors affect the number of family members?
+The primary research question is:
+
+What socioeconomic and demographic factors are associated with household size?
+
+Sub-questions：
+
+Is household size associated with household income and food expenditure?
+
+Do demographic characteristics of the household head (age and sex) affect family size?
+
+How do housing characteristics (floor area, number of bedrooms, house age) relate to household size?
 
 ## 1.3 Dataset Overview
 
 The dataset contains 11 original variables:
 
-| Variable                       | Description                                            |
-|:--------------------------|:--------------------------------------------|
-| Total.Household.Income         | Annual household income (in Philippine Pesos)          |
-| Region                         | All households are from CAR region                     |
-| Total.Food.Expenditure         | Annual food expenditure (in Philippine Pesos)          |
-| Household.Head.Sex             | Male/Female                                            |
-| Household.Head.Age             | Age in years                                           |
-| Type.of.Household              | Single Family / Extended Family / Non-related          |
-| Total.Number.of.Family.members | Household size                                         |
-| House.Floor.Area               | Square meters                                          |
-| House.Age                      | Age of the house in years                              |
-| Number.of.bedrooms             | Count of bedrooms                                      |
-| Electricity                    | Whether household has electricity access (1=Yes, 0=No) |
+| Variable | Description |
+|:-----------------------------------|:-----------------------------------|
+| Total.Household.Income | Annual household income (in Philippine Pesos) |
+| Region | All households are from CAR region |
+| Total.Food.Expenditure | Annual food expenditure (in Philippine Pesos) |
+| Household.Head.Sex | Male/Female |
+| Household.Head.Age | Age in years |
+| Type.of.Household | Single Family / Extended Family / Non-related |
+| Total.Number.of.Family.members | Household size |
+| House.Floor.Area | Square meters |
+| House.Age | Age of the house in years |
+| Number.of.bedrooms | Count of bedrooms |
+| Electricity | Whether household has electricity access (1=Yes, 0=No) |
 
-\# 2 Data
+No missing values were detected.
 
-## 2.1 Data Loading and Preprocessing
+# 2 Data
 
 ```{r}
 # Read the data 
@@ -92,7 +112,7 @@ df <- data %>%
 )
 ```
 
-## 2.2 Data Structure
+## 2.1 Data Structure
 
 ```{r}
 
@@ -107,7 +127,7 @@ cat("\n\nMissing values:\n")
 colSums(is.na(df))
 ```
 
-## 2.3 Summary Statistics
+## 2.2 Summary Statistics
 
 ```{r}
 # Summary statistics for numerical variables 
@@ -117,13 +137,15 @@ df %>%
     knitr::kable(caption = "Summary Statistics of Numerical Variables")
 ```
 
-\# 3 Exploratory Data Analysis
+The summary statistics reveal substantial heterogeneity across households. In particular, household income, food expenditure, and floor area exhibit clear right-skewness. For these variables, the mean values are considerably larger than their corresponding medians, and the maximum values are far above the upper quartiles. This indicates the presence of a small number of households with exceptionally high income, expenditure, or housing size, which generate long right tails in the distributions.
+
+In contrast, household head age appears approximately symmetric, as the mean and median are nearly identical. The response variable, household size, shows mild right-skewness, with a mean (4.67) slightly exceeding the median (4), and a maximum value of 15 suggesting the presence of larger households.
+
+Given the strong skewness observed in income-related and housing-size variables, logarithmic transformations are considered in subsequent modelling to reduce the influence of extreme values and improve the linearity assumption within the GLM framework.
 
 # 3 Exploratory Data Analysis
 
-## 3.1 Univariate Analysis
-
-### 3.1.1 Household Income Distribution
+## 3.1 Income and Expenditure Patterns
 
 ```{r}
 # Income distribution 
@@ -155,8 +177,6 @@ Statistic = c("Minimum", "Q1", "Median", "Mean", "Q3", "Maximum", "SD"),
 )  
 knitr::kable(income_stats, caption = "Income Statistics", digits = 0)
 ```
-
-### 3.1.2 Food Expenditure
 
 ```{r}
 # Food expenditure distribution 
@@ -192,7 +212,11 @@ Percent_of_Income = c(min(df$food_ratio),
 knitr::kable(food_stats, caption = "Food Expenditure Statistics")
 ```
 
-### 3.1.3 Demographic Characteristics
+Exploratory analysis shows that household income is highly right-skewed. The mean income exceeds the median, indicating income inequality within the sample. Log transformation reduces skewness and improves suitability for regression modelling.
+
+Food expenditure is positively associated with income. However, the food-to-income ratio declines as income increases, consistent with Engel’s Law. Lower-income households allocate a greater share of income to food consumption, suggesting higher economic vulnerability.
+
+## 3.2 Demographic and Housing Characteristics
 
 ```{r}
 # Household head age 
@@ -212,8 +236,12 @@ p2 <- ggplot(df, aes(x = head_sex, fill = head_sex)) +
              theme_minimal() +   
              scale_fill_manual(values = c("Male" = "lightblue", "Female" = "pink")) 
 
-# Household type 
-p3 <- ggplot(df, aes(x = hh_type, fill = hh_type)) +   
+# Household type
+df_plot <- df
+df_plot$hh_type <- recode(df_plot$hh_type,
+  "Two or More Nonrelated Persons/Members" = "Nonrelated"
+)
+p3 <- ggplot(df_plot, aes(x = hh_type, fill = hh_type)) +   
                               geom_bar() +   
                               labs(title = "Household Type",        
                               x = "Type",         
@@ -245,7 +273,9 @@ p4 <- ggplot(df, aes(x = family_size)) +
     knitr::kable(hh_type_table, caption = "Household Type Distribution")
 ```
 
-### 3.1.4 Housing Characteristics
+The age distribution of household heads is approximately bell-shaped, with most individuals concentrated between 40 and 60 years old. Gender distribution is imbalanced, with male-headed households accounting for 78.6% of the sample.
+
+Household types are predominantly single-family units (66.6%), followed by extended families (33.0%), while non-related shared households are rare (0.5%). Family size shows mild right-skewness, with most households containing 3–6 members.
 
 ```{r}
 # Floor area distribution 
@@ -294,9 +324,11 @@ knitr::kable(electricity_table, caption = "Electricity Access")
 
 ```
 
-## 3.2 Bivariate Analysis
+Housing characteristics exhibit stronger skewness. Floor area distribution is heavily right-skewed, indicating the presence of a small number of very large properties. Similarly, house age shows moderate right-skewness. Electricity access is nearly universal (92.5%), suggesting limited variation in this variable.
 
-### 3.2.1 Correlation Matrix
+These structural patterns suggest potential nonlinear effects and skewness in key housing variables, motivating transformation considerations in the modelling stage.
+
+## 3.3 Correlation Structure
 
 ```{r}
 # Select numerical variables for correlation 
@@ -315,375 +347,299 @@ corrplot(cor_matrix, method = "color", type = "upper",
          mar = c(0,0,2,0))
 ```
 
-### 3.2.2 Income vs Food Expenditure
+The correlation matrix reveals several meaningful relationships. Log income and log food expenditure show a strong positive correlation, indicating that higher-income households tend to spend more on food. Log floor area and number of bedrooms are moderately correlated, reflecting structural consistency in housing characteristics. Bedrooms also show a moderate association with family size, suggesting that larger households generally occupy larger dwellings.
 
-```{r}
-# Scatter plot 
-ggplot(df, aes(x = income, y = food_exp)) +   
-  geom_point(alpha = 0.3, color = "steelblue") +   
-  geom_smooth(method = "lm", color = "red", se = TRUE) +   
-  labs(title = "Income vs Food Expenditure",        
-       x = "Income (₱)",         
-       y = "Food Expenditure (₱)") +   
-  theme_minimal() +   
-  scale_x_continuous(labels = scales::comma) +   
-  scale_y_continuous(labels = scales::comma) +   
-  annotate("text", x = 3e6, y = 1e5,             
-           label = paste("r =", round(cor(df$income_log, df$food_exp_log), 2)))  
-# By income group 
-income_food <- df %>%   
-  group_by(income_group) %>%   
-  summarise(     Mean_Income = mean(income),     
-                 Mean_Food = mean(food_exp),     
-                 Food_Ratio = mean(food_ratio),     
-                 N = n()   )  
+Overall, no extremely high correlations are observed, indicating that severe multicollinearity is unlikely. These patterns support the inclusion of income, expenditure, and housing variables in the formal modelling stage.
 
-knitr::kable(income_food, caption = "Food Expenditure by Income Group", digits = 0)
-```
+## 3.4 Key Findings from EDA
 
-### 3.2.3 Electricity Access Analysis
+The exploratory analysis reveals substantial heterogeneity across both economic and housing characteristics. Income and food expenditure exhibit clear right-skewed distributions, with means substantially exceeding medians and extreme maximum values, indicating the presence of high-income households that drive the upper tail. A similar right-skewness is observed in floor area, where a small number of very large houses inflate the mean relative to the median. These patterns suggest that log-transformations may be appropriate for modelling continuous economic variables.
 
-```{r}
-# Compare households with and without electricity 
-electricity_comparison <- df %>%   
-  group_by(electricity) %>%   
-  summarise(     
-    Mean_Income = mean(income),     
-    Median_Income = median(income),     
-    Mean_Food = mean(food_exp),     
-    Mean_Floor_Area = mean(floor_area),     
-    Mean_Bedrooms = mean(bedrooms),     
-    Mean_Family_Size = mean(family_size),     
-    N = n()   )  
+Demographic characteristics show a relatively balanced age distribution, with most household heads concentrated between 40 and 60 years old. The gender distribution is highly asymmetric, with male-headed households representing the majority of observations. Household structure is dominated by single-family households, while extended families account for approximately one-third of the sample, and nonrelated cohabitation is rare.
 
-knitr::kable(electricity_comparison, caption = "Comparison by Electricity Access", digits = 0)  
-# Boxplot of income by electricity 
-ggplot(df, aes(x = electricity, y = income, fill = electricity)) +   
-  geom_boxplot() +   
-  labs(title = "Income Distribution by Electricity Access",        
-       x = "Has Electricity",         
-       y = "Income (₱)") +   
-  theme_minimal() +   
-  scale_y_continuous(labels = scales::comma) +   
-  scale_fill_manual(values = c("0" = "gray", "1" = "gold"),                     
-                    labels = c("No", "Yes"))  
-# T-test 
-t_test_elec <- t.test(income ~ electricity, data = df) 
-                      cat("T-test p-value:", t_test_elec$p.value)
-```
-
-### 3.2.4 Gender Analysis
-
-```{r}
-# Income by gender 
-gender_income <- df %>%   
-  group_by(head_sex) %>%   
-  summarise(     
-    Mean_Income = mean(income),     
-    Median_Income = median(income),     
-    Mean_Family_Size = mean(family_size),     
-    Extended_Family_Pct = mean(hh_type == "Extended Family") * 100,     N = n()   
-    )  
-knitr::kable(gender_income, caption = "Characteristics by Household Head Gender", digits = 0)  
-# Boxplot 
-ggplot(df, aes(x = head_sex, y = income, fill = head_sex)) +   
-  geom_boxplot() +   
-  labs(title = "Income Distribution by Gender",        
-       x = "Household Head Gender",        
-       y = "Income (₱)") +   
-  theme_minimal() +   
-  scale_y_continuous(labels = scales::comma) +   
-  scale_fill_manual(values = c("Male" = "lightblue", "Female" = "pink"))
-```
-
-### 3.2.5 Housing Conditions
-
-```{r}
-# Floor area vs family size 
-ggplot(df, aes(x = floor_area, y = family_size)) +   
-  geom_point(alpha = 0.3, color = "brown") +   
-  geom_smooth(method = "lm", color = "red", se = TRUE) +   
-  labs(title = "Floor Area vs Family Size",        
-       x = "Floor Area (sqm)",         
-       y = "Family Size") +   
-  theme_minimal()  
-# Bedrooms vs family size 
-ggplot(df, aes(x = as.factor(bedrooms), y = family_size, fill = as.factor(bedrooms))) +   geom_boxplot() +  
-  labs(title = "Bedrooms vs Family Size",        
-       x = "Number of Bedrooms",         
-       y = "Family Size") +   
-  theme_minimal() +   
-  theme(legend.position = "none") +   
-  scale_fill_brewer(palette = "Greens")  
-# Create crowding index 
-df <- df %>%   
-  mutate(     
-    crowding_index = floor_area / family_size,     
-    crowded = ifelse(crowding_index < 10, "Crowded", "Not Crowded")   
-    )  
-# Crowding analysis 
-crowding_table <- df %>%   
-  group_by(crowded) %>%   
-  summarise(     
-    Count = n(),     
-    Percentage = round(n()/nrow(df)*100, 1),     
-    Mean_Income = mean(income)   
-    )  
-
-knitr::kable(crowding_table, caption = "Crowding Analysis", digits = 0)
-```
-
-## 3.3 Key Findings from EDA
-
-```{r}
-cat("========================================\n") 
-cat("        KEY FINDINGS FROM EDA\n") 
-cat("========================================\n\n")  
-cat("1. Income Distribution:\n") 
-cat("   - Highly skewed: Mean = ₱", round(mean(df$income), 0),      ", Median = ₱", round(median(df$income), 0), "\n") 
-cat("   - Top 10% earn > ₱", round(quantile(df$income, 0.9), 0), "\n") 
-cat("   - Bottom 25% earn < ₱", round(quantile(df$income, 0.25), 0), "\n\n")  
-cat("2. Food Expenditure:\n") 
-cat("   - Average food expenditure: ₱", round(mean(df$food_exp), 0), "\n") 
-cat("   - Food as % of income: ", round(mean(df$food_ratio), 1), "%\n") 
-cat("   - Engel's Law: Poor spend ", round(mean(df$food_ratio[df$income_group == "Low"]), 1),      "% vs Rich spend ", round(mean(df$food_ratio[df$income_group == "High"]), 1), "%\n\n")  
-cat("3. Demographics:\n") 
-cat("   - Average household size: ", round(mean(df$family_size), 1), " persons\n") 
-cat("   - Average head age: ", round(mean(df$head_age), 1), " years\n") 
-cat("   - Male-headed households: ", round(mean(df$head_sex == "Male")*100, 1), "%\n") 
-cat("   - Extended families: ", round(mean(df$hh_type == "Extended Family")*100, 1), "%\n\n")  
-cat("4. Housing:\n") 
-cat("   - Average floor area: ", round(mean(df$floor_area), 1), " sqm\n") 
-cat("   - Average bedrooms: ", round(mean(df$bedrooms), 1), "\n") 
-cat("   - Crowded households (<10 sqm/person): ",      round(mean(df$crowding_index < 10)*100, 1), "%\n\n")  
-cat("5. Infrastructure:\n") 
-cat("   - Electrification rate: ", round(mean(df$electricity == 1)*100, 1), "%\n") 
-cat("   - Income gap: Electrified households earn ",      round(mean(df$income[df$electricity == 1]) / mean(df$income[df$electricity == 0]), 1),     "x more\n\n")  
-cat("6. Strongest Correlations:\n") 
-cat("   - Floor Area vs Bedrooms: r = ", round(cor(df$floor_area_log, df$bedrooms), 2), "\n") 
-cat("   - Income vs Food Expenditure: r = ", round(cor(df$income_log, df$food_exp_log), 2), "\n") 
-cat("   - Income vs Floor Area: r = ", round(cor(df$income_log, df$floor_area_log), 2), "\n") 
-cat("   - Bedrooms vs Family Size: r = ", round(cor(df$bedrooms, df$family_size), 2), "\n")
-```
+Family size is moderately right-skewed, with most households consisting of 3–6 members, but with a small number of larger households. Housing characteristics further indicate that most dwellings contain 1–3 bedrooms, and the vast majority of households have access to electricity, suggesting relatively high infrastructure coverage within the sampled population.
 
 # 4 Function data analysis
 
-## 4.1 Generalised Linear Model
+## 4.1 Variable Selection
+
+Assume that number of family members follows a Poisson distribution Poisson($\mu_i$), a Poisson model with all variables was fitted: $$
+log(\mu_i) = \beta_0 + \beta_1\cdot {Income}_i + \beta_2\cdot {FoodExpenditure}_i + ... + \beta_8\cdot \mathbb{I}_{Electricity_i}
+$$ This model estimates how changes in independent variables influence the probability of being classified as a large household. Full model is used to fit the data, and the result is as follows.
 
 ```{r}
-# |echo: true
-
-# Divide Family Size into Two Categories: Large and Small
-df_function <- df %>%
-  mutate(family_size_binary = ifelse(family_size < mean(family_size, na.rm=TRUE), 0, 1)) %>%
-  select(income_log, food_exp_log, head_sex, family_size_binary)
+# |echo: false
+# Get Data Set
+df_function0 <- df %>%
+  select(income, food_exp, head_sex, hh_type, floor_area,
+         house_age, bedrooms, electricity, family_size)
 
 # Model Fitting
-fit_logit <- glm(family_size_binary ~ ., family = binomial(link = "logit"), data = df_function)
+fit_poi0 <- glm(family_size ~ ., family = poisson, data = df_function0)
 
-tidy(fit_logit, conf.int = TRUE, exponentiate = TRUE) |>
-  mutate(across(where(is.numeric), \(x) round(x, 3))) |>
-  kbl(col.names = c("Term", "OR", "SE", "z", "p", "CI low", "CI high"),
-      caption = "Logistic regression -- odds ratios with 95% CIs") |>
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+# Result
+cat("Model0: family_size ~ income+food_exp+head_sex+hh_type+floor_area+house_age+bedrooms+electricity \n")
+cat("AIC: ", fit_poi0$aic, "\n")
+cat("BIC: ", BIC(fit_poi0), "\n")
+pvalue0 <- data.frame(coef(summary(fit_poi0))[, 4])
+colnames(pvalue0) <- "p-value"
+print(pvalue0)
 ```
 
-## 4.2 Plotting predicted values
+The table shows that floor_area, bedrooms and electricity have high p-values, which means that the relationship between the dependent variable and these independent variables could be very small. These variables can be removed from the model. Also Two or More Nonrelated Persons/Members has a very high p-value, so it could be merged with Extended Family.
 
 ```{r}
-# |echo: true
+# |echo: false
+# Delete floor_area and electricity and merge two categories
+df_function1 <- df_function0 %>%
+  mutate(hh_type_binary =
+           ifelse(hh_type %in%
+                    c("Extended Family",  "Two or More Nonrelated Persons/Members"),
+                  "Extended or Notrelated", "Single Family")) %>%
+  select(income, food_exp, head_sex, hh_type_binary, house_age, bedrooms, family_size)
 
-# Predict by Income and Head Sex
-nd1 <- expand.grid(
-  income_log = seq(1, 15, by = 10),
-  food_exp_log = mean(df_function$food_exp_log),
-  head_sex = levels(df_function$head_sex)
-)
-out11 <- predict(fit_logit, newdata = nd1, type = "link", se.fit = TRUE)
-nd1$pred  <- plogis(out11$fit)
-p1 <- ggplot(nd1, aes(x = income_log, y = pred, colour = head_sex, fill = head_sex)) +
-  geom_line(linewidth = 0.9) +
-  geom_hline(yintercept = 0.5, linetype = "dashed", colour = "grey50") +
-  labs(y = "Total Number of Family Members",
-       x = "Total Household Income",
-       colour = "Household Head Sex", fill = "Household Head Sex",
-       title = "Predicted Total Number of Family Members by Income and Head Sex",
-       subtitle = "Food expenditure held fixed")
+# Model Fitting
+fit_poi1 <- glm(family_size ~ ., family = poisson, data = df_function1)
 
-# Predict by Food Expenditure and Head Sex
-nd2 <- expand.grid(
-  income_log = mean(df_function$income_log),
-  food_exp_log = seq(1, 15, by = 10),
-  head_sex = levels(df_function$head_sex)
-)
-out21 <- predict(fit_logit, newdata = nd2, type = "link", se.fit = TRUE)
-nd2$pred  <- plogis(out21$fit)
-p2 <- ggplot(nd2, aes(x = food_exp_log, y = pred, colour = head_sex, fill = head_sex)) +
-  geom_line(linewidth = 0.9) +
-  geom_hline(yintercept = 0.5, linetype = "dashed", colour = "grey50") +
-  labs(y = "Total Number of Family Members",
-       x = "Total Food Expenditure",
-       colour = "Household Head Sex", fill = "Household Head Sex",
-       title = "Predicted Total Number of Family Members by Food Expenditure and Head Sex",
-       subtitle = "Income held fixed")
-
-grid.arrange(p1, p2, ncol=2)
-
-plot_model(fit_logit, type = "est", show.values = TRUE)
+# Result
+cat("Model1: family_size ~ income+food_exp+head_sex+hh_type_binary+house_age+bedrooms \n")
+cat("AIC: ", fit_poi1$aic, "\n")
+cat("BIC: ", BIC(fit_poi1), "\n")
+pvalue1 <- data.frame(coef(summary(fit_poi1))[, 4])
+colnames(pvalue1) <- "p-value"
+print(pvalue1)
 ```
 
-# 5 Assessing Model Fit
-
-## 5.1 Goodness of Fit
+The AIC has increased, while the BIC has decreased. Considering that the research focus on explaining the relationship between the dependent variable and independent variables, the BIC value should be used here. Hence the new model should be used. Next, a log transformed is performed on some of the variables.
 
 ```{r}
-# |echo: true
+# |echo: false
+# Log Transform and combine categorical explanatory variables
+df_function2 <- df %>%
+  mutate(hh_type_binary =
+           ifelse(hh_type %in%
+                    c("Extended Family",  "Two or More Nonrelated Persons/Members"),
+                  "Extended or Notrelated", "Single Family")) %>%
+  select(income_log, food_exp_log, head_sex, hh_type_binary,
+         house_age, bedrooms, family_size)
 
-# null model with intercept only
-null_model <- glm(family_size_binary ~ 1, data = df_function, family = binomial)
+# Model Fitting
+fit_poi2 <- glm(family_size ~ ., family = poisson, data = df_function2)
 
-# Likelihood Ratio Test
-anova_result <- anova(null_model, fit_logit, test = "Chisq")
-
-print(tidy(anova_result))
+cat("Model2: family_size ~ income_log+food_exp_log+cate_variable+house_age+bedrooms \n")
+cat("AIC: ", fit_poi2$aic, "\n")
+cat("BIC: ", BIC(fit_poi2), "\n")
+pvalue2 <- data.frame(coef(summary(fit_poi2))[, 4])
+colnames(pvalue2) <- "p-value"
+print(pvalue2)
 ```
 
-## 5.2 Cross-validation
+Both AIC and BIC have decreased. The final model should be:
 
-```{r}
-# |echo: true
-
-df_cv <- df_function
-df_cv$family_size_binary <- factor(df_cv$family_size_binary, levels = c(0, 1), labels = c("small", "large"))
-
-set.seed(123)
-ctrl <- trainControl(method = "cv", number = 5, 
-                     summaryFunction = twoClassSummary, 
-                     classProbs = TRUE)
-model_cv <- train(family_size_binary ~ income_log+food_exp_log+head_sex,
-                  data = df_cv, 
-                  method = "glm", family = "binomial",
-                  trControl = ctrl,
-                  metric = "ROC")
-print(model_cv$results)
-```
-
-## 5.3 K-Nearest Neighbors
-
-```{r}
-# |echo: true
-
-# Split Training Set and Test Set
-set.seed(123)
-train_idx <- sample(1:nrow(df_function), 1400)
-train <- df_function[train_idx, ]
-test <- df_function[-train_idx, ]
-
-# Standardize
-train_features <- scale(train[, -3])
-test_features <- scale(test[, -3], 
-                       center = attr(train_features, "scaled:center"),
-                       scale = attr(train_features, "scaled:scale"))
-train_scaled <- data.frame(train_features, Family_size = train[, 3])
-test_scaled <- data.frame(test_features, Family_size = test[, 3])
-
-# Classify
-acc <- c()
-for (i in 1:50){
-  knn_pred <- knn(
-    train = train_features,
-    test = test_features,
-    cl = train[, 3],
-    k = i
-  )
-  accuracy <- mean(knn_pred == test[, 3])
-  acc <- append(acc, accuracy)
-}
-
-plot(c(1:50), acc, type="l")
-
-
-knn_pred <- knn(
-  train = train_features,
-  test = test_features,
-  cl = train[, 3],
-  k = 11
-)
-
-# Calculate the Accuracy
-accuracy <- mean(knn_pred == test[, 3])
-cat("Accuracy:", round(accuracy * 100, 2), "%")
-```
-
-## 5.4 Model Comparison
-
-```{r}
-# |echo: true
-
-
-
-ctrl <- trainControl(method = "cv", number = 5,
-                     classProbs = TRUE,
-                     summaryFunction = twoClassSummary)
-df_comparison <- df_function
-df_comparison$family_size_binary <- as.character(df_comparison$family_size_binary)
-df_comparison$family_size_binary <- factor(df_comparison$family_size_binary,
-                                         levels = c("0", "1"),
-                                         labels = c("Class0", "Class1"))
-
-form <- family_size_binary ~ income_log+food_exp_log+head_sex
-
-# GLM
-model_logit <- train(form,
-                     data = df_comparison,
-                     method = "glm",
-                     family = binomial,
-                     trControl = ctrl,
-                     metric = "ROC")
-
-# KNN
-model_knn <- train(form,
-                   data = df_comparison,
-                   method = "knn",
-                   trControl = ctrl,
-                   metric = "ROC",
-                   tuneLength = 10)
-
-# Comparison
-results <- resamples(list(Logistic = model_logit, KNN = model_knn))
-summary_res <- summary(results)
-# table
-metrics_df <- data.frame(
-  Metric = colnames(summary_res$statistics$ROC),
-  Logistic = summary_res$statistics$ROC['Logistic',],
-  KNN = summary_res$statistics$ROC['KNN',]
-)
-gt(metrics_df) %>%
-  tab_header(title = "Result of 5-fold cross-validation accuracy") %>%
-  fmt_number(columns = 2:3, decimals = 3) %>%
-  cols_label(Metric = "Evaluation metrics", Logistic = "GLM (mean)", KNN = "KNN (mean)")
-# figure
-bwplot(results, metric = "ROC")
-dotplot(results, metric = "ROC")
-```
-
-# 6 Interpretation of results
-
-# 7 Conclusion
-
-Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-1 + 1
-```
-
-You can add options to executable code like this
+$$
+log(\mu_i) = \beta_0 + \beta_1\cdot log({Income}_i) + \beta_2\cdot log({FoodExpenditure}_i) + \beta_3\cdot \mathbb{I}_{HeadSex_i} \\
++ \beta_4\cdot \mathbb{I}_{HouseholdType_i} + \beta_5\cdot {HouseAge}_i + \beta_6\cdot {Bedrooms}
+$$ The results of the final model is shown as follows.
 
 ```{r}
 #| echo: false
-2 * 2
+tidy(fit_poi2, conf.int = TRUE, exponentiate = TRUE) |>
+  mutate(across(where(is.numeric), \(x) round(x, 3))) |>
+  kbl(col.names = c("Term", "IRR", "SE", "z", "p", "CI low", "CI high"),
+      caption = "The Poisson model -- Incidence Rate Ratios with 95% CIs") |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed). bash quarto preview Group_1_Analysis.qmd --to html
+The Poisson regression results indicate that several socioeconomic and demographic factors are significantly associated with household size. Income has a negative effect (IRR = 0.885), suggesting that higher-income households tend to have smaller family sizes after controlling for other characteristics. In contrast, food expenditure shows a strong positive association (IRR = 1.842), likely reflecting its relationship with overall household scale. Male-headed households are associated with larger family sizes, while single-family households tend to be smaller compared to extended households. Although house age and number of bedrooms are statistically significant, their effects are relatively modest in magnitude. Overall, the model identifies meaningful structural and economic influences on household size.
+
+## 4.2 Visualization for Relationship
+
+To better understand how the variables influence the number of family members, plots of fitted value vs variables are shown as follows.
+
+```{r}
+# |echo: true
+
+# Fitted Value vs log(income)
+grid1 <- expand.grid(
+  income_log = seq(min(df_function2$income_log),
+                   max(df_function2$income_log), length.out = 50),
+  food_exp_log = mean(df_function2$food_exp_log),
+  house_age = mean(df_function2$house_age),
+  bedrooms = mean(df_function2$bedrooms),
+  head_sex = levels(df_function2$head_sex),
+  hh_type_binary = unique(df_function2$hh_type_binary)
+)
+
+pred1 <- predict(fit_poi2, newdata = grid1, se.fit = TRUE)
+grid1 <- grid1 %>%
+  mutate(
+    pred = exp(pred1$fit),
+    group = interaction(head_sex, hh_type_binary, sep='-')
+    )
+
+ggplot(grid1, aes(x = income_log, y = pred, color = group,group=group)) +
+  geom_line() +
+  labs(x = "Log(Total household income)", y = "The number of family members",
+       color = "HeadSex-HouseholdType", fill = "HeadSex-HouseholdType",
+       title = "Predicted Family Size by Income, Head Sex and The Type of Household",
+       subtitle = "Food expenditure, house age and bedrooms held fixed") +
+  theme_minimal()
+
+# Fitted Value vs log(food_exp)
+grid2 <- expand.grid(
+  income_log = mean(df_function2$income_log),
+  food_exp_log = seq(min(df_function2$food_exp_log),
+                     max(df_function2$food_exp_log), length.out = 50),
+  house_age = mean(df_function2$house_age),
+  bedrooms = mean(df_function2$bedrooms),
+  head_sex = levels(df_function2$head_sex),
+  hh_type_binary = unique(df_function2$hh_type_binary)
+)
+
+pred2 <- predict(fit_poi2, newdata = grid2, se.fit = TRUE)
+grid2 <- grid2 %>%
+  mutate(
+    pred = exp(pred2$fit),
+    group = interaction(head_sex, hh_type_binary, sep='-')
+  )
+
+ggplot(grid2, aes(x = food_exp_log, y = pred, color = group,group=group)) +
+  geom_line() +
+  labs(x = "log(Total Food Expenditure)", y = "The number of family members",
+       color = "HeadSex-HouseholdType", fill = "HeadSex-HouseholdType",
+       title = "Predicted Family Size by Food Expenditure, Head Sex and The Type of Household",
+       subtitle = "Income, house age and bedrooms held fixed") +
+  theme_minimal()
+
+
+# Fitted Value vs house_age
+grid3 <- expand.grid(
+  income_log = mean(df_function2$income_log),
+  food_exp_log = mean(df_function2$food_exp_log),
+  house_age = seq(min(df_function2$house_age),
+                  max(df_function2$house_age), length.out = 50),
+  bedrooms = mean(df_function2$bedrooms),
+  head_sex = levels(df_function2$head_sex),
+  hh_type_binary = unique(df_function2$hh_type_binary)
+)
+
+pred3 <- predict(fit_poi2, newdata = grid3, se.fit = TRUE)
+grid3 <- grid3 %>%
+  mutate(
+    pred = exp(pred3$fit),
+    group = interaction(head_sex, hh_type_binary, sep='-')
+  )
+
+ggplot(grid3, aes(x = house_age, y = pred, color = group,group=group)) +
+  geom_line() +
+  labs(x = "Household Head Age", y = "The number of family members",
+       color = "HeadSex-HouseholdType", fill = "HeadSex-HouseholdType",
+       title = "Predicted Family Size by Household Head Age, Head Sex and The Type of Household",
+       subtitle = "Income, food expenditure and bedrooms held fixed") +
+  theme_minimal()
+
+# Fitted Value vs Bedrooms
+grid4 <- expand.grid(
+  income_log = mean(df_function2$income_log),
+  food_exp_log = mean(df_function2$food_exp_log),
+  house_age = mean(df_function2$house_age),
+  bedrooms = seq(min(df_function2$bedrooms),
+                  max(df_function2$bedrooms), length.out = 50),
+  head_sex = levels(df_function2$head_sex),
+  hh_type_binary = unique(df_function2$hh_type_binary)
+)
+
+pred4 <- predict(fit_poi2, newdata = grid4, se.fit = TRUE)
+grid4 <- grid4 %>%
+  mutate(
+    pred = exp(pred4$fit),
+    group = interaction(head_sex, hh_type_binary, sep='-')
+  )
+
+ggplot(grid4, aes(x = bedrooms, y = pred, color = group,group=group)) +
+  geom_line() +
+  labs(x = "Number of Bedrooms", y = "The number of family members",
+       color = "HeadSex-HouseholdType", fill = "HeadSex-HouseholdType",
+       title = "Predicted Family Size by Number of Bedrooms, Head Sex and The Type of Household",
+       subtitle = "Income, food expenditure and household head age held fixed") +
+  theme_minimal()
+```
+
+The predicted plots illustrate how household size varies with key socioeconomic variables under the Poisson model. Income appears negatively associated with family size, whereas food expenditure shows a positive relationship. Differences across household type and head sex persist even after controlling for other covariates, indicating structural demographic effects.
+
+Although income exhibits a positive simple correlation with household size, the Poisson regression reveals a negative conditional effect after controlling for housing and expenditure variables. This suggests that higher-income households tend to have smaller family sizes once structural housing capacity is accounted for, consistent with demographic transition theory.
+
+# 5 Assessing Model Fit
+
+## 5.1 Deviance Analysis
+
+The goodness of fit of a Poisson model can be measured by the null deviance and residual deviance. The model can be compared with the null model using a likelihood ratio test.
+
+```{r}
+#| echo: false
+
+# Get Deviance
+null.deviance <- fit_poi2$null.deviance
+resid.deviance <- fit_poi2$deviance
+df.null <- fit_poi2$df.null
+df.resid <- fit_poi2$df.residual
+
+# Likelihood Ratio Test
+p.value <- 1 - pchisq(null.deviance - resid.deviance, df.null - df.resid)
+cat("p-value of likelihood ratio test: ", p.value)
+```
+
+Hence the model is significantly better than the null model.
+
+## 5.2 Observed vs Fitted Values under the Poisson Model
+
+The plot of fitted value and true value can also be shown to see how well the model fit the data.
+
+```{r}
+#| echo: false
+
+pred_vals <- predict(fit_poi2, type = "response")
+plot_df <- data.frame(
+  actual = df_function2$family_size,
+  predicted = pred_vals
+)
+
+ggplot(plot_df, aes(x = actual, y = predicted)) +
+  geom_point(alpha = 0.3) +
+  geom_abline(intercept = 0, slope = 1, 
+              color = "red", linetype = "dashed", size = 1) +
+  labs(x = "True Value", y = "Fitted  Value",
+       title = "Fitted Value vs True value") +
+  theme_minimal()
+```
+
+The scatter plot shows fitted versus observed household size, with the red dashed line representing perfect prediction. While the model captures the overall increasing pattern, substantial dispersion around the reference line suggests moderate prediction error, particularly for larger households.
+
+
+## 5.3 Overdispersion
+
+To see whether the Quasipoisson should be used to fitted the data, residual deviance and Pearson $\chi^2$ of the model can be printed.
+
+```{r}
+#| echo: false
+
+# Deviance-based dispersion
+deviance_ratio <- deviance(fit_poi2) / fit_poi2$df.residual
+
+# Pearson-based dispersion
+pearson_ratio <- sum(residuals(fit_poi2, type = "pearson")^2) / fit_poi2$df.residual
+
+# Print results
+cat("Deviance-based dispersion:", round(deviance_ratio, 3), "\n")
+cat("Pearson-based dispersion:", round(pearson_ratio, 3), "\n")
+```
+
+The ratio of residual deviance to degrees of freedom is smaller than 1, so there is no evidence of severe overdispersion. Hence the Quasipoisson and he Negative Binomial is not necessary.
+
+# 6 Conclusion
+
+This study investigated the socioeconomic and housing characteristics of households using a combination of exploratory data analysis and regression modelling. The descriptive analysis highlighted substantial variation in income, food expenditure, and housing size, with clear evidence of right-skewed distributions in key economic variables. Demographic patterns revealed a predominance of middle-aged, male-headed, single-family households, alongside high levels of electricity access.
+
+The modelling results suggest that household economic behaviour is influenced by both demographic and structural housing characteristics. However, the skewed nature of several continuous variables indicates that careful model specification and potential transformations are necessary to ensure valid inference.
+
+Overall, the findings provide insight into the distributional structure of household socioeconomic conditions and demonstrate the importance of combining exploratory diagnostics with appropriate statistical modelling strategies. Future work could extend this analysis by incorporating interaction effects, non-linear specifications, or alternative model families to better capture heterogeneity across households.
